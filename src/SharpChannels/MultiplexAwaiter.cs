@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Runtime.CompilerServices;
 using System.Threading;
-using System.Threading.Tasks;
 
 namespace SharpChannels
 {
@@ -11,7 +10,6 @@ namespace SharpChannels
         {
             public bool _completed;
             public Action _onCompleted;
-            public ExecutionContext _executionContext;
             private bool _oportunityTaken = false;
             object _oportunityLock = new object();
             public bool TryAcquire()
@@ -31,8 +29,8 @@ namespace SharpChannels
                 if (rollback)
                 {
                     _oportunityTaken = false;
-                    Monitor.Exit(_oportunityLock);
                 }
+                Monitor.Exit(_oportunityLock);
             }
         }
 
@@ -59,21 +57,14 @@ namespace SharpChannels
                 {
                     return;
                 }
-                if (_asyncState._executionContext == null)
-                {
-                    Task.Run(callback);
-                }
-                else
-                {
-                    ExecutionContext.Run(_asyncState._executionContext, _ => callback(), null);
-                }
+
+                callback();
             }
         }
         public void OnCompleted(Action continuation)
         {
             lock (_asyncState)
             {
-                _asyncState._executionContext = ExecutionContext.Capture();
                 _asyncState._onCompleted = continuation;
                 if (_asyncState._completed)
                 {
@@ -82,14 +73,8 @@ namespace SharpChannels
                     {
                         return;
                     }
-                    if (_asyncState._executionContext == null)
-                    {
-                        Task.Run(callback);
-                    }
-                    else
-                    {
-                        ExecutionContext.Run(_asyncState._executionContext, _ => callback(), null);
-                    }
+
+                    callback();
                 }
             }
         }

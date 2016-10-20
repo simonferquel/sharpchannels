@@ -5,11 +5,11 @@ using System.Runtime.InteropServices;
 // General Information about an assembly is controlled through the following 
 // set of attributes. Change these attribute values to modify the information
 // associated with an assembly.
-[assembly: AssemblyTitle("SharpChannels")]
+[assembly: AssemblyTitle("WebCrawler.Simple")]
 [assembly: AssemblyDescription("")]
 [assembly: AssemblyConfiguration("")]
 [assembly: AssemblyCompany("")]
-[assembly: AssemblyProduct("SharpChannels")]
+[assembly: AssemblyProduct("WebCrawler.Simple")]
 [assembly: AssemblyCopyright("Copyright ©  2016")]
 [assembly: AssemblyTrademark("")]
 [assembly: AssemblyCulture("")]
@@ -19,6 +19,8 @@ using System.Runtime.InteropServices;
 // COM, set the ComVisible attribute to true on that type.
 [assembly: ComVisible(false)]
 
+// The following GUID is for the ID of the typelib if this project is exposed to COM
+[assembly: Guid("219413fc-836c-4089-a5ea-3067b7a0614a")]
 
 // Version information for an assembly consists of the following four values:
 //

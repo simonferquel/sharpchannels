@@ -1,7 +1,5 @@
 ﻿using System;
 using System.Runtime.CompilerServices;
-using System.Threading;
-using System.Threading.Tasks;
 
 namespace SharpChannels
 {
@@ -12,17 +10,18 @@ namespace SharpChannels
             public T _value;
             public bool _completed;
             public Action _onCompleted;
-            public ExecutionContext _executionContext;
         }
         private AsyncState _asyncState;
         private T _value;
         private IUniqueOportunity _uniqueOportunity;
+        private bool _completed;
 
         internal static ChannelReceiveAwaiter<T> Done(T value)
         {
             return new ChannelReceiveAwaiter<T>
             {
-                _value = value
+                _value = value,
+                _completed = true
             };
         }
         internal static ChannelReceiveAwaiter<T> Waiting(IUniqueOportunity oportunity)
@@ -63,14 +62,7 @@ namespace SharpChannels
                 {
                     return;
                 }
-                if (_asyncState._executionContext == null)
-                {
-                    Task.Run(callback);
-                }
-                else
-                {
-                    ExecutionContext.Run(_asyncState._executionContext, _ => callback(), null);
-                }
+                callback();
             }
         }
 
@@ -83,7 +75,6 @@ namespace SharpChannels
         {
             lock (_asyncState)
             {
-                _asyncState._executionContext = ExecutionContext.Capture();
                 _asyncState._onCompleted = continuation;
                 if (_asyncState._completed)
                 {
@@ -92,14 +83,8 @@ namespace SharpChannels
                     {
                         return;
                     }
-                    if (_asyncState._executionContext == null)
-                    {
-                        Task.Run(callback);
-                    }
-                    else
-                    {
-                        ExecutionContext.Run(_asyncState._executionContext, _ => callback(), null);
-                    }
+
+                    callback();
                 }
             }
         }
@@ -110,7 +95,7 @@ namespace SharpChannels
             {
                 if (_asyncState == null)
                 {
-                    return true;
+                    return _completed;
                 }
                 lock (_asyncState)
                 {
@@ -131,9 +116,13 @@ namespace SharpChannels
             }
         }
 
+
         internal static ChannelReceiveAwaiter<T> Never()
         {
-            throw new NotImplementedException();
+            return new ChannelReceiveAwaiter<T>
+            {
+                _completed = false
+            };
         }
     }
     public struct ChannelSendAwaiter<T> : INotifyCompletion
@@ -142,7 +131,6 @@ namespace SharpChannels
         {
             public readonly T _value;
             public bool _completed;
-            internal ExecutionContext _executionContext;
             internal Action _onCompleted;
 
             public AsyncState(T value) { _value = value; }
@@ -185,14 +173,8 @@ namespace SharpChannels
                 {
                     return value;
                 }
-                if (_asyncState._executionContext == null)
-                {
-                    Task.Run(callback);
-                }
-                else
-                {
-                    ExecutionContext.Run(_asyncState._executionContext, _ => callback(), null);
-                }
+
+                callback();
                 return value;
             }
         }
@@ -222,13 +204,12 @@ namespace SharpChannels
 
         public void OnCompleted(Action continuation)
         {
-            if(_asyncState == null)
+            if (_asyncState == null)
             {
                 return;
             }
             lock (_asyncState)
             {
-                _asyncState._executionContext = ExecutionContext.Capture();
                 _asyncState._onCompleted = continuation;
                 if (_asyncState._completed)
                 {
@@ -237,14 +218,8 @@ namespace SharpChannels
                     {
                         return;
                     }
-                    if (_asyncState._executionContext == null)
-                    {
-                        Task.Run(callback);
-                    }
-                    else
-                    {
-                        ExecutionContext.Run(_asyncState._executionContext, _ => callback(), null);
-                    }
+
+                    callback();
                 }
             }
         }
