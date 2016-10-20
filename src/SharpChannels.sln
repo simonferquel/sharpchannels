@@ -9,6 +9,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SharpChannels.Tests", "Shar
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Samples", "Samples", "{20AEEF87-F4AD-4B18-806A-99385D34288D}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WebCrawler.Simple", "WebCrawler.Simple\WebCrawler.Simple.csproj", "{219413FC-836C-4089-A5EA-3067B7A0614A}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -23,8 +25,15 @@ Global
 		{9908E1FC-0BAB-4638-919C-93E44B39CB38}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{9908E1FC-0BAB-4638-919C-93E44B39CB38}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{9908E1FC-0BAB-4638-919C-93E44B39CB38}.Release|Any CPU.Build.0 = Release|Any CPU
+		{219413FC-836C-4089-A5EA-3067B7A0614A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{219413FC-836C-4089-A5EA-3067B7A0614A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{219413FC-836C-4089-A5EA-3067B7A0614A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{219413FC-836C-4089-A5EA-3067B7A0614A}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{219413FC-836C-4089-A5EA-3067B7A0614A} = {20AEEF87-F4AD-4B18-806A-99385D34288D}
 	EndGlobalSection
 EndGlobal

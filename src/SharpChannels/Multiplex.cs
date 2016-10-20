@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading.Tasks;
 
 namespace SharpChannels
 {
@@ -66,6 +67,33 @@ namespace SharpChannels
                 return new Multiplex { _ops = ops };
             }
         }
+
+        public Multiplex CaseReceive<T>(Channel<T> channel, Func<T, Task> operation)
+        {
+            Func<bool> synchronousPass = () =>
+            {
+                return false;
+            };
+            Action<IUniqueOportunity, Action> asyncPass = async (oportunity, callback) =>
+            {
+                var value = await channel.ReceiveAsync(oportunity);
+                await operation(value);
+                callback();
+            };
+            if (_ops == null)
+            {
+                var ops = new List<MultiplexOperation>(1);
+                ops.Add(new MultiplexOperation(synchronousPass, asyncPass));
+                return new Multiplex { _ops = ops };
+            }
+            else
+            {
+                var ops = new List<MultiplexOperation>(_ops.Count + 1);
+                ops.AddRange(_ops);
+                ops.Add(new MultiplexOperation(synchronousPass, asyncPass));
+                return new Multiplex { _ops = ops };
+            }
+        }
         public Multiplex CaseSend<T>(Channel<T> channel, T value, Action todo = null)
         {
             Func<bool> synchronousPass = () =>
@@ -81,6 +109,33 @@ namespace SharpChannels
             {
                 await channel.SendAsync(value, oportunity);
                 todo?.Invoke();
+                callback();
+            };
+            if (_ops == null)
+            {
+                var ops = new List<MultiplexOperation>(1);
+                ops.Add(new MultiplexOperation(synchronousPass, asyncPass));
+                return new Multiplex { _ops = ops };
+            }
+            else
+            {
+                var ops = new List<MultiplexOperation>(_ops.Count + 1);
+                ops.AddRange(_ops);
+                ops.Add(new MultiplexOperation(synchronousPass, asyncPass));
+                return new Multiplex { _ops = ops };
+            }
+        }
+
+        public Multiplex CaseSend<T>(Channel<T> channel, T value, Func<Task> todo)
+        {
+            Func<bool> synchronousPass = () =>
+            {
+                return false;
+            };
+            Action<IUniqueOportunity, Action> asyncPass = async (oportunity, callback) =>
+            {
+                await channel.SendAsync(value, oportunity);
+                await todo();
                 callback();
             };
             if (_ops == null)
