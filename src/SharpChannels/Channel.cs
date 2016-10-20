@@ -8,221 +8,7 @@ using System.Threading.Tasks;
 
 namespace SharpChannels
 {
-    public struct ChannelReceiveAwaiter<T> : INotifyCompletion
-    {
-        private class AsyncState
-        {
-            public T _value;
-            public bool _completed;
-            public Action _onCompleted;
-            public ExecutionContext _executionContext;
-        }
-        private AsyncState _asyncState;
-        private T _value;
 
-        internal static ChannelReceiveAwaiter<T> Done(T value)
-        {
-            return new ChannelReceiveAwaiter<T>
-            {
-                _value = value
-            };
-        }
-        internal static ChannelReceiveAwaiter<T> Waiting()
-        {
-            return new ChannelReceiveAwaiter<T>
-            {
-                _asyncState = new AsyncState()
-            };
-        }
-
-        internal bool LockForSelection()
-        {
-            return true;
-        }
-        internal void Receive(T value)
-        {
-            lock (_asyncState)
-            {
-                _asyncState._value = value;
-                _asyncState._completed = true;
-
-                var callback = _asyncState._onCompleted;
-                if (callback == null)
-                {
-                    return;
-                }
-                if (_asyncState._executionContext == null)
-                {
-                    Task.Run(callback);
-                }
-                else
-                {
-                    Thread callingThread = Thread.CurrentThread;
-                    ExecutionContext.Run(_asyncState._executionContext, _ => callback(), null);
-                }
-            }
-        }
-
-        public ChannelReceiveAwaiter<T> GetAwaiter()
-        {
-            return this;
-        }
-
-        public void OnCompleted(Action continuation)
-        {
-            lock (_asyncState)
-            {
-                _asyncState._executionContext = ExecutionContext.Capture();
-                _asyncState._onCompleted = continuation;
-                if (_asyncState._completed)
-                {
-                    var callback = _asyncState._onCompleted;
-                    if (callback == null)
-                    {
-                        return;
-                    }
-                    if (_asyncState._executionContext == null)
-                    {
-                        Task.Run(callback);
-                    }
-                    else
-                    {
-                        ExecutionContext.Run(_asyncState._executionContext, _ => callback(), null);
-                    }
-                }
-            }
-        }
-
-        public bool IsCompleted
-        {
-            get
-            {
-                if (_asyncState == null)
-                {
-                    return true;
-                }
-                lock (_asyncState)
-                {
-                    return _asyncState._completed;
-                }
-            }
-        }
-
-        public T GetResult()
-        {
-            if (_asyncState == null)
-            {
-                return _value;
-            }
-            lock (_asyncState)
-            {
-                return _asyncState._value;
-            }
-        }
-    }
-    public struct ChannelSendAwaiter<T> : INotifyCompletion
-    {
-        private class AsyncState
-        {
-            public readonly T _value;
-            public bool _completed;
-            internal ExecutionContext _executionContext;
-            internal Action _onCompleted;
-
-            public AsyncState(T value) { _value = value; }
-        }
-        private AsyncState _asyncState;
-        internal static ChannelSendAwaiter<T> Done()
-        {
-            return new ChannelSendAwaiter<T>
-            {
-            };
-        }
-        internal static ChannelSendAwaiter<T> Waiting(T value)
-        {
-            return new ChannelSendAwaiter<T>
-            {
-                _asyncState = new AsyncState(value)
-            };
-        }
-
-        internal T Consume()
-        {
-            lock (_asyncState)
-            {
-                var value = _asyncState._value;
-                _asyncState._completed = true;
-                var callback = _asyncState._onCompleted;
-                if (callback == null)
-                {
-                    return value;
-                }
-                if (_asyncState._executionContext == null)
-                {
-                    Task.Run(callback);
-                }
-                else
-                {
-                    ExecutionContext.Run(_asyncState._executionContext, _ => callback(), null);
-                }
-                return value;
-            }
-        }
-
-        internal bool LockForSelection()
-        {
-            return true;
-        }
-
-        public ChannelSendAwaiter<T> GetAwaiter()
-        {
-            return this;
-        }
-
-        public void OnCompleted(Action continuation)
-        {
-            lock (_asyncState)
-            {
-                _asyncState._executionContext = ExecutionContext.Capture();
-                _asyncState._onCompleted = continuation;
-                if (_asyncState._completed)
-                {
-                    var callback = _asyncState._onCompleted;
-                    if (callback == null)
-                    {
-                        return;
-                    }
-                    if (_asyncState._executionContext == null)
-                    {
-                        Task.Run(callback);
-                    }
-                    else
-                    {
-                        ExecutionContext.Run(_asyncState._executionContext, _ => callback(), null);
-                    }
-                }
-            }
-        }
-
-        public bool IsCompleted
-        {
-            get
-            {
-                if (_asyncState == null)
-                {
-                    return true;
-                }
-                lock (_asyncState)
-                {
-                    return _asyncState._completed;
-                }
-            }
-        }
-
-        public void GetResult()
-        {
-        }
-    }
     public class Channel<T>
     {
         private readonly ReaderWriterLockSlim _rwl = new ReaderWriterLockSlim(LockRecursionPolicy.NoRecursion);
@@ -233,6 +19,19 @@ namespace SharpChannels
         private int _bufferedCount;
         private bool _closed;
         private bool _closing;
+        class NeverBlockOportunity : IUniqueOportunity
+        {
+            public void Release(bool rollback)
+            {
+            }
+
+            public bool TryAcquire()
+            {
+                return true;
+            }
+        }
+
+        private static NeverBlockOportunity _neverBlockOportunity = new NeverBlockOportunity();
 
         public Channel(int bufferSize = 0)
         {
@@ -288,7 +87,27 @@ namespace SharpChannels
                 }
             }
         }
+        public int BufferedCount
+        {
+            get
+            {
+                _rwl.EnterReadLock();
+                try
+                {
+                    return _bufferedCount;
+                }
+                finally
+                {
+                    _rwl.ExitReadLock();
+                }
+            }
+        }
+
         public ChannelSendAwaiter<T> SendAsync(T value)
+        {
+            return SendAsync(value, _neverBlockOportunity);
+        }
+        internal ChannelSendAwaiter<T> SendAsync(T value, IUniqueOportunity oportunity)
         {
             Action afterLock = null;
             _rwl.EnterWriteLock();
@@ -304,16 +123,35 @@ namespace SharpChannels
                     _activeReceivers.RemoveFirst();
                     if (receiver.LockForSelection())
                     {
-                        afterLock = () => receiver.Receive(value);
-                        return ChannelSendAwaiter<T>.Done();
+                        if (oportunity.TryAcquire())
+                        {
+                            afterLock = () => receiver.Receive(value);
+                            oportunity.Release(false);
+                            receiver.ConfirmSelection();
+                            return ChannelSendAwaiter<T>.Done();
+                        }
+                        else
+                        {
+                            receiver.CancelSelection();
+                            _activeReceivers.AddFirst(receiver);
+                            return ChannelSendAwaiter<T>.Never();
+                        }
                     }
                 }
                 if (_buffer != null && _bufferedCount < _buffer.Length)
                 {
-                    _buffer[(_bufferHead + _bufferedCount++) % _buffer.Length] = value;
-                    return ChannelSendAwaiter<T>.Done();
+                    if (oportunity.TryAcquire())
+                    {
+                        oportunity.Release(false);
+                        _buffer[(_bufferHead + _bufferedCount++) % _buffer.Length] = value;
+                        return ChannelSendAwaiter<T>.Done();
+                    }
+                    else
+                    {
+                        return ChannelSendAwaiter<T>.Never();
+                    }
                 }
-                var waiter = ChannelSendAwaiter<T>.Waiting(value);
+                var waiter = ChannelSendAwaiter<T>.Waiting(value, oportunity);
                 _activeSenders.AddLast(waiter);
                 return waiter;
             }
@@ -340,6 +178,7 @@ namespace SharpChannels
                     _activeReceivers.RemoveFirst();
                     if (receiver.LockForSelection())
                     {
+                        receiver.ConfirmSelection();
                         afterLock = () => receiver.Receive(value);
                         return true;
                     }
@@ -357,15 +196,18 @@ namespace SharpChannels
                 afterLock?.Invoke();
             }
         }
-
         public ChannelReceiveAwaiter<T> ReceiveAsync()
+        {
+            return ReceiveAsync(_neverBlockOportunity);
+        }
+        internal ChannelReceiveAwaiter<T> ReceiveAsync(IUniqueOportunity oportunity)
         {
             ChannelReceiveAwaiter<T> result = default(ChannelReceiveAwaiter<T>);
             Func<ChannelReceiveAwaiter<T>> indirectResult = null;
             _rwl.EnterWriteLock();
             try
             {
-                ReceiveAsyncInternal(ref result, ref indirectResult);
+                ReceiveAsyncInternal(ref result, ref indirectResult, oportunity);
             }
             finally
             {
@@ -378,19 +220,27 @@ namespace SharpChannels
             return result;
         }
 
-        private void ReceiveAsyncInternal(ref ChannelReceiveAwaiter<T> result, ref Func<ChannelReceiveAwaiter<T>> indirectResult)
+        private void ReceiveAsyncInternal(ref ChannelReceiveAwaiter<T> result, ref Func<ChannelReceiveAwaiter<T>> indirectResult, IUniqueOportunity oportunity)
         {
             if (_buffer != null && _bufferedCount > 0)
             {
-                result = ChannelReceiveAwaiter<T>.Done(_buffer[_bufferHead]);
-                _buffer[_bufferHead] = default(T);
-                _bufferHead = (_bufferHead + 1) % _buffer.Length;
-                --_bufferedCount;
-                if (_closing && _bufferedCount == 0 && _activeSenders.Count == 0)
+                if (oportunity.TryAcquire())
                 {
-                    _closed = true;
+                    oportunity.Release(false);
+                    result = ChannelReceiveAwaiter<T>.Done(_buffer[_bufferHead]);
+                    _buffer[_bufferHead] = default(T);
+                    _bufferHead = (_bufferHead + 1) % _buffer.Length;
+                    --_bufferedCount;
+                    if (_closing && _bufferedCount == 0 && _activeSenders.Count == 0)
+                    {
+                        _closed = true;
+                    }
+                    return;
                 }
-                return;
+                else
+                {
+                    result = ChannelReceiveAwaiter<T>.Never();
+                }
             }
             while (_activeSenders.Count > 0)
             {
@@ -399,21 +249,41 @@ namespace SharpChannels
                 _activeSenders.RemoveFirst();
                 if (sender.LockForSelection())
                 {
-                    indirectResult = () => ChannelReceiveAwaiter<T>.Done(sender.Consume());
-                    if (_closing && _bufferedCount == 0 && _activeSenders.Count == 0)
+                    if (oportunity.TryAcquire())
                     {
-                        _closed = true;
+                        sender.ConfirmSelection();
+                        oportunity.Release(false);
+                        indirectResult = () => ChannelReceiveAwaiter<T>.Done(sender.Consume());
+                        if (_closing && _bufferedCount == 0 && _activeSenders.Count == 0)
+                        {
+                            _closed = true;
+                        }
+                        return;
                     }
-                    return;
+                    else
+                    {
+                        sender.CancelSelection();
+                        _activeSenders.AddFirst(sender);
+                        result = ChannelReceiveAwaiter<T>.Never();
+                        return;
+                    }
                 }
             }
             if (_closed)
             {
-                result = ChannelReceiveAwaiter<T>.Done(default(T));
-                return;
+                if (oportunity.TryAcquire())
+                {
+                    oportunity.Release(false);
+                    result = ChannelReceiveAwaiter<T>.Done(default(T));
+                    return;
+                }
+                else
+                {
+                    result = ChannelReceiveAwaiter<T>.Never();
+                }
             }
 
-            var waiter = ChannelReceiveAwaiter<T>.Waiting();
+            var waiter = ChannelReceiveAwaiter<T>.Waiting(oportunity);
             _activeReceivers.AddLast(waiter);
             result = waiter;
 
@@ -439,6 +309,7 @@ namespace SharpChannels
                 _activeSenders.RemoveFirst();
                 if (sender.LockForSelection())
                 {
+                    sender.ConfirmSelection();
                     indirectResult = () => sender.Consume();
                     if (_closing && _bufferedCount == 0 && _activeSenders.Count == 0)
                     {
