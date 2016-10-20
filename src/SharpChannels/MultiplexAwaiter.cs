@@ -65,7 +65,6 @@ namespace SharpChannels
                 }
                 else
                 {
-                    Thread callingThread = Thread.CurrentThread;
                     ExecutionContext.Run(_asyncState._executionContext, _ => callback(), null);
                 }
             }
