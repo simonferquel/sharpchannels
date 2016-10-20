@@ -41,6 +41,10 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Channel.cs" />
+    <Compile Include="ChannelAwaiters.cs" />
+    <Compile Include="IUniqueOportunity.cs" />
+    <Compile Include="Multiplex.cs" />
+    <Compile Include="MultiplexAwaiter.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
