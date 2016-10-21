@@ -1,5 +1,7 @@
 ﻿using System;
 using System.Runtime.CompilerServices;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace SharpChannels
 {
@@ -10,6 +12,7 @@ namespace SharpChannels
             public T _value;
             public bool _completed;
             public Action _onCompleted;
+            public ExecutionContext _execContext;
         }
         private AsyncState _asyncState;
         private T _value;
@@ -62,7 +65,8 @@ namespace SharpChannels
                 {
                     return;
                 }
-                callback();
+                var ctx = _asyncState._execContext;
+                ThreadPool.QueueUserWorkItem((__) => ExecutionContext.Run(ctx, _ => callback(), null));
             }
         }
 
@@ -85,6 +89,10 @@ namespace SharpChannels
                     }
 
                     callback();
+                }
+                else
+                {
+                    _asyncState._execContext = ExecutionContext.Capture();
                 }
             }
         }
@@ -132,7 +140,7 @@ namespace SharpChannels
             public readonly T _value;
             public bool _completed;
             internal Action _onCompleted;
-
+            public ExecutionContext _exeContext;
             public AsyncState(T value) { _value = value; }
         }
         bool _completed;
@@ -174,7 +182,8 @@ namespace SharpChannels
                     return value;
                 }
 
-                callback();
+                var ctx = _asyncState._exeContext;
+                ThreadPool.QueueUserWorkItem((__) => ExecutionContext.Run(ctx, _ => callback(), null));
                 return value;
             }
         }
@@ -220,6 +229,10 @@ namespace SharpChannels
                     }
 
                     callback();
+                }
+                else
+                {
+                    _asyncState._exeContext = ExecutionContext.Capture();
                 }
             }
         }

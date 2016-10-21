@@ -22,7 +22,8 @@ namespace SharpChannels.Tests
                 {
                     for (int i = 0; i < 10; ++i)
                     {
-                        await channel.SendAsync(i + 1);
+                        var local = i + 1;
+                        await channel.SendAsync(local);
                     }
                     channel.Close();
                 });
@@ -53,7 +54,8 @@ namespace SharpChannels.Tests
                 {
                     for (int i = 0; i < 10; ++i)
                     {
-                        await channel.SendAsync(i + 1);
+                        var local = i + 1;
+                        await channel.SendAsync(local);
                     }
                     channel.Close();
                 });

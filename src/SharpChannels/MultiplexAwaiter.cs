@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Runtime.CompilerServices;
 using System.Threading;
+using System.Threading.Tasks;
 
 namespace SharpChannels
 {
@@ -10,6 +11,7 @@ namespace SharpChannels
         {
             public bool _completed;
             public Action _onCompleted;
+            public ExecutionContext _exeContext;
             private bool _oportunityTaken = false;
             object _oportunityLock = new object();
             public bool TryAcquire()
@@ -58,7 +60,8 @@ namespace SharpChannels
                     return;
                 }
 
-                callback();
+                var ctx = _asyncState._exeContext;
+                ThreadPool.QueueUserWorkItem((__) => ExecutionContext.Run(ctx, _ => callback(), null));
             }
         }
         public void OnCompleted(Action continuation)
@@ -76,6 +79,11 @@ namespace SharpChannels
 
                     callback();
                 }
+                else
+                {
+                    _asyncState._exeContext = ExecutionContext.Capture();
+                }
+                
             }
         }
         public bool IsCompleted
