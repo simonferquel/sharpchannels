@@ -45,7 +45,6 @@ namespace SharpChannels
 
         public void Close()
         {
-            List<Action> cleanup = new List<Action>();
             _rwl.EnterWriteLock();
             try
             {
@@ -58,7 +57,11 @@ namespace SharpChannels
                     {
                         var receiver = _activeReceivers.First.Value;
                         _activeReceivers.RemoveFirst();
-                        cleanup.Add(() => receiver.Receive(value));
+                        if (receiver.LockForSelection())
+                        {
+                            receiver.ConfirmSelection();
+                            receiver.Receive(value);
+                        }
                     }
                     _closed = true;
                 }
@@ -66,10 +69,6 @@ namespace SharpChannels
             finally
             {
                 _rwl.ExitWriteLock();
-                foreach (var a in cleanup)
-                {
-                    a();
-                }
             }
         }
         public bool IsClosed

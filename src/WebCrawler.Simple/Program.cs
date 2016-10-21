@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Net.Http;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace WebCrawler.Simple
@@ -19,24 +20,46 @@ namespace WebCrawler.Simple
 
         static async Task UnviversalWorker(Channel<Html> htmls, Channel<IEnumerable<string>> urls, HashSet<string> seenUrls, Channel<bool> cancelChannel)
         {
+            using (var countDown = new CountdownEvent(1))
             using (var client = new HttpClient())
             {
+                var cts = new CancellationTokenSource();
                 while (true)
                 {
                     bool canceled = false;
                     await new Multiplex()
                         .CaseReceive(cancelChannel, _ => canceled = true)
-                        .CaseReceive(htmls, html => Parse(html, urls, seenUrls, cancelChannel))
-                        .CaseReceive(urls, url => Fetch(client, url, htmls, cancelChannel));
+                        .CaseReceive(htmls, async html =>
+                        {
+                            countDown.AddCount();
+                            try
+                            {
+                                await Parse(html, urls, seenUrls, cancelChannel);
+                            }
+                            finally { countDown.Signal(); }
+                        })
+                        .CaseReceive(urls, async url =>
+                        {
+                            countDown.AddCount();
+                            try
+                            {
+                                await Fetch(client, url, htmls, cancelChannel, cts.Token);
+                            }
+                            finally { countDown.Signal(); }
+                        });
                     if (canceled)
                     {
-                        return;
+                        cts.Cancel();
+                        break;
                     }
                 }
+                countDown.Signal();
+                countDown.Wait();
+
             }
         }
 
-        static async void Fetch(HttpClient client, IEnumerable<string> urls, Channel<Html> outputHtml, Channel<bool> cancelChannel)
+        static async Task Fetch(HttpClient client, IEnumerable<string> urls, Channel<Html> outputHtml, Channel<bool> cancelChannel, CancellationToken cancelToken)
         {
             foreach (var url in urls)
             {
@@ -47,14 +70,17 @@ namespace WebCrawler.Simple
                 Console.WriteLine("[Fetching] Begin " + url);
                 try
                 {
-                    var html = await client.GetStringAsync(url);
+                    var response = await client.GetAsync(url, cancelToken);
+                    response.EnsureSuccessStatusCode();
+                    var html = await response.Content.ReadAsStringAsync();
 
                     Console.WriteLine("[Fetching] End " + url);
                     await new Multiplex()
                         .CaseSend(outputHtml, new Html { Source = html, Url = url })
                         .CaseReceive(cancelChannel, _ => { });
-                   
+
                 }
+                catch (OperationCanceledException) { }
                 catch
                 {
 
@@ -67,7 +93,7 @@ namespace WebCrawler.Simple
             }
 
         }
-        static async void Parse(Html html, Channel<IEnumerable<string>> outputUrls, HashSet<string> seenUrls, Channel<bool> cancelChannel)
+        static async Task Parse(Html html, Channel<IEnumerable<string>> outputUrls, HashSet<string> seenUrls, Channel<bool> cancelChannel)
         {
 
             try
@@ -121,8 +147,8 @@ namespace WebCrawler.Simple
 
         static void Main(string[] args)
         {
-            var urls = new Channel<IEnumerable<string>>(5);
-            var htmls = new Channel<Html>(5);
+            var urls = new Channel<IEnumerable<string>>(50);
+            var htmls = new Channel<Html>(50);
             var cancel = new Channel<bool>();
             var seen = new HashSet<string>();
             seen.Add(args[0]);
