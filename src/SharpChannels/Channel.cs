@@ -21,6 +21,14 @@ namespace SharpChannels
         private bool _closing;
         class NeverBlockOportunity : IUniqueOportunity
         {
+            public bool IsStillAvailable
+            {
+                get
+                {
+                    return true;
+                }
+            }
+
             public void Release(bool rollback)
             {
             }
@@ -148,6 +156,18 @@ namespace SharpChannels
                     else
                     {
                         return ChannelSendAwaiter<T>.Never();
+                    }
+                }
+                // cleanup
+                var current = _activeSenders.First;
+                while (current != null)
+                {
+
+                    var old = current;
+                    current = old.Next;
+                    if (!old.Value.IsStillListening())
+                    {
+                        _activeSenders.Remove(old);
                     }
                 }
                 var waiter = ChannelSendAwaiter<T>.Waiting(value, oportunity);
@@ -279,9 +299,20 @@ namespace SharpChannels
                 else
                 {
                     result = ChannelReceiveAwaiter<T>.Never();
+                    return;
                 }
             }
-
+            // cleanup
+            var current = _activeReceivers.First;
+            while (current != null)
+            {
+                var old = current;
+                current = old.Next;
+                if (!old.Value.IsStillListening())
+                {
+                    _activeReceivers.Remove(old);
+                }
+            }
             var waiter = ChannelReceiveAwaiter<T>.Waiting(oportunity);
             _activeReceivers.AddLast(waiter);
             result = waiter;

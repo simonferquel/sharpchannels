@@ -35,7 +35,14 @@ namespace SharpChannels
                 _uniqueOportunity = oportunity
             };
         }
-
+        internal bool IsStillListening()
+        {
+            if (_uniqueOportunity == null)
+            {
+                return true;
+            }
+            return _uniqueOportunity.IsStillAvailable;
+        }
         internal bool LockForSelection()
         {
             if (_uniqueOportunity == null)
@@ -187,7 +194,14 @@ namespace SharpChannels
                 return value;
             }
         }
-
+        internal bool IsStillListening()
+        {
+            if (_uniqueOportunity == null)
+            {
+                return true;
+            }
+            return _uniqueOportunity.IsStillAvailable;
+        }
 
         internal bool LockForSelection()
         {
