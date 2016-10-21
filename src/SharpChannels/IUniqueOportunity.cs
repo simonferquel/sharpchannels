@@ -4,5 +4,7 @@
     {
         bool TryAcquire();
         void Release(bool rollback);
+
+        bool IsStillAvailable { get; }
     }
 }

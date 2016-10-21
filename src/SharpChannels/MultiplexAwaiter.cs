@@ -14,6 +14,18 @@ namespace SharpChannels
             public ExecutionContext _exeContext;
             private bool _oportunityTaken = false;
             object _oportunityLock = new object();
+
+            public bool IsStillAvailable
+            {
+                get
+                {
+                    Monitor.Enter(_oportunityLock);
+                    bool result = !_oportunityTaken;
+                    Monitor.Exit(_oportunityLock);
+                    return result;
+                }
+            }
+
             public bool TryAcquire()
             {
                 Monitor.Enter(_oportunityLock);
